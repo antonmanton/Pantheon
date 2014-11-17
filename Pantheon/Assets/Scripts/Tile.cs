@@ -7,14 +7,20 @@ public class Tile : MonoBehaviour
 	public int column;
 	public Character character;
 
-	// Use this for initialization
+	// Initialization
 	void Start ()
 	{
 	
 	}
 
+	// Public accessors
 	public TeamGrid GetTeamGrid()
 	{
 		return (TeamGrid)GetComponentInParent(typeof(TeamGrid));
+	}
+
+	public int GetTeamID()
+	{
+		return GetTeamGrid ().teamID;
 	}
 }

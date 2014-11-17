@@ -4,13 +4,14 @@ using System.Collections;
 public class BattleManager : MonoBehaviour
 {
 	public UIManager uiManager;
+	public BattleGrid battleGrid;
+	private Character[] characters;
 
-	// Game Option type stuff
+	// Movement Rules
 	public int moveRange;
 	public bool canMoveDiagonal;
 
-	public BattleGrid battleGrid;
-	public Character[] characters;
+	// Battle state
 	public bool battleActive { get; private set; }
 	private int activeCharacterIndex;
 
@@ -18,6 +19,7 @@ public class BattleManager : MonoBehaviour
 	void Start ()
 	{
 		activeCharacterIndex = -1;
+		characters = (Character[]) GameObject.FindObjectsOfType<Character> (); //TODO: Use tags, or build from input to battle scene
 	}
 
 	public Character GetActiveCharacter()
@@ -79,7 +81,7 @@ public class BattleManager : MonoBehaviour
 			{
 				for (int row = 0; row <= 2; ++row)
 				{
-					if (teamGrid.IsValidTile(row, column))
+					if (IsValidTile(character.teamID, row, column))
 					{
 						Tile tile = teamGrid.GetTile(row, column);
 						if (tile.character == null)
@@ -107,6 +109,7 @@ public class BattleManager : MonoBehaviour
 		Character character = characters [characterIndex];
 		if (character != null)
 		{
+			Debug.Log ("TURN START: " + character.properName + " (team " + character.teamID + ")");
 			uiManager.HandleStartCharacterTurn(character);
 		}
 	}
@@ -140,10 +143,58 @@ public class BattleManager : MonoBehaviour
 	{
 		//TODO: Link up with Mark's character code
 	}
-
-	// Update is called once per frame
-	void Update ()
-	{
 	
+	public bool IsValidTile(int teamID, int row, int column)
+	{
+		TeamGrid teamGrid = battleGrid.teamGrids[teamID];
+		if (teamGrid != null)
+		{
+			return (teamGrid.GetTile (row, column) != null);
+		}
+		return false;
+	}
+	
+	public bool CanMoveToTile(Tile startTile, int row, int column)
+	{
+		TeamGrid teamGrid = battleGrid.teamGrids[startTile.GetTeamID()];
+		if (teamGrid != null)
+		{
+			Tile endTile = teamGrid.GetTile (row, column);
+			return CanMoveToTile (startTile, endTile);
+		}
+		return false;
+	}
+	
+	public bool CanMoveToTile(Tile startTile, Tile endTile)
+	{
+		if (endTile == null)
+		{
+			return false;
+		}
+		if (startTile.GetTeamID() != endTile.GetTeamID ())
+		{
+			return false;
+		}
+		int rowDelta = Mathf.Abs (startTile.row - endTile.row);
+		int columnDelta = Mathf.Abs (startTile.column - endTile.column);
+		if (rowDelta == 0 && columnDelta == 0)
+		{
+			return true;
+		}
+		else if (endTile.character != null)
+		{
+			return false;
+		}
+		
+		
+		if (!canMoveDiagonal)
+		{
+			return (rowDelta + columnDelta <= moveRange);
+		}
+		else
+		{
+			int moveRadius = Mathf.Max(rowDelta, columnDelta);
+			return (moveRadius <= moveRange);
+		}
 	}
 }

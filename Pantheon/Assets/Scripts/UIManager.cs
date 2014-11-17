@@ -3,32 +3,35 @@ using System.Collections.Generic;
 
 public class UIManager : MonoBehaviour
 {
+	public bool debugMouseRay;
 	public BattleManager battleManager;
 
-	// Materials and asset stuff
-	public Material activeCharacterMaterial;
+	// Assets
+	public Material tileBaseMaterial;
 	public Material moveRangeMaterial;
-	public Material abilityRangeMaterial;
 	public GameObject activeCharacterArrow;
 	public GameObject abilityRangeArrow;
+	private List<GameObject> markers;
 
-	// Use this for initialization
+	// Initialization
 	void Start ()
 	{
+		markers = new List<GameObject> ();
 	}
 
 	// Update is called once per frame
 	void Update ()
 	{
-		/*
-		Ray ray = Camera.main.ScreenPointToRay (Input.mousePosition);
-		Color color = Color.yellow;
-		if (Physics.Raycast(ray))
+		if (debugMouseRay)
 		{
-			color = Color.green;
+			Ray ray = Camera.main.ScreenPointToRay (Input.mousePosition);
+			Color color = Color.yellow;
+			if (Physics.Raycast(ray))
+			{
+				color = Color.green;
+			}
+			Debug.DrawRay (ray.origin, ray.direction * 10, color);
 		}
-		Debug.DrawRay (ray.origin, ray.direction * 10, color);
-		*/
 
 		if (!battleManager.battleActive)
 		{
@@ -50,8 +53,7 @@ public class UIManager : MonoBehaviour
 					Character activeCharacter = battleManager.GetActiveCharacter();
 					if (activeCharacter.currentTile != null)
 					{
-						TeamGrid teamGrid = activeCharacter.currentTile.GetTeamGrid();
-						if (teamGrid.CanMoveToTile(activeCharacter.currentTile, hitTile))
+						if (battleManager.CanMoveToTile(activeCharacter.currentTile, hitTile))
 						{
 							PreviewCharacterMove(activeCharacter, hitTile);
 							battleManager.CommitCharacterMove(activeCharacter);
@@ -88,11 +90,10 @@ public class UIManager : MonoBehaviour
 	{
 		if (character != null)
 		{
-			if (activeCharacterMaterial != null)
+			// Indicate active character
+			if (activeCharacterArrow != null)
 			{
-				List<Character> characters = new List<Character>();
-				characters.Add(character);
-				HighlightCharacters(characters, activeCharacterMaterial);
+				MarkCharacter(character, activeCharacterArrow);
 			}
 
 			// Preview move range
@@ -100,31 +101,25 @@ public class UIManager : MonoBehaviour
 			{
 				List<Tile> tilesToHighlight = new List<Tile>();
 				TeamGrid teamGrid = character.currentTile.GetTeamGrid();
-				for (int row = 0; row <= 2; ++row)
+				foreach (Tile tile in teamGrid.tiles)
 				{
-					for (int column = 0; column <= 2; ++column)
+					if (battleManager.CanMoveToTile(character.currentTile, tile))
 					{
-						if (teamGrid.IsValidTile(row, column))
-						{
-							Tile tile = teamGrid.GetTile(row, column);
-							if (teamGrid.CanMoveToTile(character.currentTile, tile))
-							{
-								tilesToHighlight.Add(tile);
-							}
-						}
+						tilesToHighlight.Add (tile);
 					}
 				}
 				HighlightTiles (tilesToHighlight, moveRangeMaterial);
 			}
 
 			// Preview attack range
-			if (abilityRangeMaterial != null)
+			//TODO: refresh after move commit
+			if (abilityRangeArrow != null)
 			{
 				Ability_BasicMelee meleeAbility = character.GetComponentInParent<Ability_BasicMelee>();
 				if (meleeAbility != null && meleeAbility.IsValid())
 				{
 					List<Character> targetableCharacters = meleeAbility.GetTargetableCharacters();
-					HighlightCharacters(targetableCharacters, abilityRangeMaterial);
+					MarkCharacters(targetableCharacters, abilityRangeArrow);
 				}
 			}
 		}
@@ -132,27 +127,19 @@ public class UIManager : MonoBehaviour
 
 	public void HandleEndCharacterTurn(Character character)
 	{
-		if (character != null)
-		{
-			if (activeCharacterMaterial != null)
-			{
-				MeshRenderer characterRenderer = (MeshRenderer) character.GetComponentInChildren(typeof(MeshRenderer));
-				characterRenderer.material.color = Color.grey;
-			}
-			UnhighlightTiles(character.currentTile.GetTeamGrid().tiles);
-			UnhighlightCharacters(battleManager.characters);
-		}
+		UnhighlightAll ();
+		UnmarkAll ();
 	}
 
 	void PreviewCharacterMove(Character character, int rowDelta, int columnDelta)
 	{
 		if (character != null)
 		{
-			TeamGrid teamGrid = character.currentTile.GetTeamGrid ();
 			int destinationRow = character.previewTile.row + rowDelta;
 			int destinationColumn = character.previewTile.column + columnDelta;
-			if (teamGrid.IsValidTile (destinationRow, destinationColumn))
+			if (battleManager.IsValidTile (character.teamID, destinationRow, destinationColumn))
 			{
+				TeamGrid teamGrid = battleManager.battleGrid.teamGrids[character.teamID];
 				Tile destinationTile = teamGrid.GetTile(destinationRow, destinationColumn);
 				PreviewCharacterMove(character, destinationTile);
 			}
@@ -163,8 +150,7 @@ public class UIManager : MonoBehaviour
 	{
 		if (character != null)
 		{
-			TeamGrid teamGrid = character.currentTile.GetTeamGrid ();
-			if (teamGrid.CanMoveToTile(character.currentTile, destinationTile))
+			if (battleManager.CanMoveToTile(character.currentTile, destinationTile))
 			{
 				// Don't set the character's current tile until we confirm
 				character.previewTile = destinationTile;
@@ -173,30 +159,34 @@ public class UIManager : MonoBehaviour
 		}
 	}
 
-	void HighlightCharacters(List<Character> characters, Material material)
+	void MarkCharacters(List<Character> characters, GameObject marker)
 	{
 		foreach (Character character in characters)
 		{
-			MeshRenderer characterRenderer = (MeshRenderer) character.GetComponentInChildren(typeof(MeshRenderer));
-			characterRenderer.material = material;
+			MarkCharacter (character, marker);
 		}
 	}
 
-	void UnhighlightCharacters(Character[] characters)
+	void MarkCharacter(Character character, GameObject marker)
 	{
-		foreach (Character character in characters)
+		if (character.currentTile != null)
 		{
-			MeshRenderer characterRenderer = (MeshRenderer) character.GetComponentInChildren(typeof(MeshRenderer));
-			characterRenderer.material.color = Color.grey;
+			MarkTile(character.currentTile, marker);
 		}
 	}
 
-	void HighlightTiles(Tile[] tiles, Material material)
+	void MarkTile(Tile tile, GameObject marker)
 	{
-		foreach (Tile tile in tiles)
+		Vector3 position = tile.transform.position + new Vector3 (0f, 1.5f, 0f); //TODO: make as variable, or anchor point in world
+		GameObject markerInstance = (GameObject) Instantiate(marker, position, Quaternion.identity) as GameObject;
+		markers.Add (markerInstance);
+	}
+
+	void UnmarkAll()
+	{
+		foreach (GameObject marker in markers)
 		{
-			MeshRenderer tileRenderer = (MeshRenderer) tile.GetComponentInChildren(typeof(MeshRenderer));
-			tileRenderer.material = material;
+			GameObject.Destroy (marker);
 		}
 	}
 
@@ -204,17 +194,21 @@ public class UIManager : MonoBehaviour
 	{
 		foreach (Tile tile in tiles)
 		{
-			MeshRenderer tileRenderer = (MeshRenderer) tile.GetComponentInChildren(typeof(MeshRenderer));
+			MeshRenderer tileRenderer = (MeshRenderer) tile.GetComponentInChildren<MeshRenderer>();
 			tileRenderer.material = material;
 		}
 	}
 
-	void UnhighlightTiles(Tile[] tiles)
+	void UnhighlightAll()
 	{
-		foreach (Tile tile in tiles)
+		foreach (TeamGrid teamGrid in battleManager.battleGrid.teamGrids)
 		{
-			MeshRenderer tileRenderer = (MeshRenderer) tile.GetComponentInChildren(typeof(MeshRenderer));
-			tileRenderer.material.color = Color.grey;
+			foreach (Tile tile in teamGrid.tiles)
+			{
+				MeshRenderer tileRenderer = (MeshRenderer) tile.GetComponentInChildren<MeshRenderer>();
+				tileRenderer.material = tileBaseMaterial;
+			}
 		}
 	}
+		
 }

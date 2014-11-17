@@ -5,15 +5,20 @@ public class BattleGrid : MonoBehaviour
 {
 	public TeamGrid[] teamGrids;
 
-	// Use this for initialization
+	// Initialization
 	void Start ()
 	{
-	
+		//teamGrids = (TeamGrid[]) gameObject.GetComponentsInChildren<TeamGrid> (); //TODO: this is not guaranteed to be indexed by teamID
 	}
-	
-	// Update is called once per frame
-	void Update ()
+
+	// Public accessors
+	public TeamGrid GetTeamGrid(int teamID)
 	{
-	
+		if (teamID >= 0 && teamID < teamGrids.Length)
+		{
+			return teamGrids [teamID];
+		}
+		Debug.Log ("Invalid Team ID");
+		return null;
 	}
 }
